@@ -341,7 +341,11 @@
                     </button>
                     <button class="component-btn" data-type="lens" data-subtype="convex">
                         <div class="icon">🔍</div>
-                        <span>透镜</span>
+                        <span>凸透镜</span>
+                    </button>
+                    <button class="component-btn" data-type="lens" data-subtype="concave">
+                        <div class="icon">🔎</div>
+                        <span>凹透镜</span>
                     </button>
                     <button class="component-btn" data-type="mirror" data-subtype="plane">
                         <div class="icon">🪞</div>
@@ -760,57 +764,87 @@
                         this.gizmoManager.scaleGizmoEnabled = false;
                         this.gizmoManager.usePointerToAttachGizmos = false;
 
-                        // 等待Gizmo初始化完成
+                        // 等待Gizmo初始化完成 - 增强兼容性检查
                         setTimeout(() => {
                             try {
-                                // 检查Gizmo是否可用
-                                if (this.gizmoManager.gizmos && 
-                                    this.gizmoManager.gizmos.positionGizmo && 
-                                    this.gizmoManager.gizmos.rotationGizmo) {
-                                    
-                                    // 监听位置Gizmo拖拽事件
-                                    this.gizmoManager.gizmos.positionGizmo.onDragStartObservable.add(() => {
-                                        this.camera.detachControl();
-                                        console.log('开始拖拽位置Gizmo');
-                                    });
-
-                                    this.gizmoManager.gizmos.positionGizmo.onDragEndObservable.add(() => {
-                                        this.camera.attachControl(this.canvas, true);
-                                        this.needsRayUpdate = true;
-                                        this.updatePropertiesPanel(); // 更新属性面板显示
-                                        console.log('结束拖拽位置Gizmo');
-                                    });
-
-                                    // 监听旋转Gizmo拖拽事件
-                                    this.gizmoManager.gizmos.rotationGizmo.onDragStartObservable.add(() => {
-                                        this.camera.detachControl();
-                                        console.log('开始拖拽旋转Gizmo');
-                                    });
-
-                                    this.gizmoManager.gizmos.rotationGizmo.onDragEndObservable.add(() => {
-                                        this.camera.attachControl(this.canvas, true);
-                                        this.needsRayUpdate = true;
-                                        this.updatePropertiesPanel(); // 更新属性面板显示
-                                        console.log('结束拖拽旋转Gizmo');
-                                    });
-
-                                    // 添加实时变换监听
-                                    this.gizmoManager.gizmos.positionGizmo.onDragObservable.add(() => {
-                                        this.needsRayUpdate = true;
-                                    });
-
-                                    this.gizmoManager.gizmos.rotationGizmo.onDragObservable.add(() => {
-                                        this.needsRayUpdate = true;
-                                    });
-                                    
-                                    console.log('Gizmo事件监听器设置成功');
-                                } else {
-                                    console.warn('Gizmo对象未正确初始化');
+                                console.log('🔍 检查Gizmo可用性...');
+                                console.log('GizmoManager:', this.gizmoManager);
+                                console.log('GizmoManager属性:', Object.keys(this.gizmoManager));
+                                
+                                // 多种兼容性检查方式
+                                let positionGizmo = null;
+                                let rotationGizmo = null;
+                                let scaleGizmo = null;
+                                
+                                // 方式1: 通过gizmos属性访问 (新版本)
+                                if (this.gizmoManager.gizmos) {
+                                    console.log('✅ 找到gizmos属性');
+                                    positionGizmo = this.gizmoManager.gizmos.positionGizmo;
+                                    rotationGizmo = this.gizmoManager.gizmos.rotationGizmo;
+                                    scaleGizmo = this.gizmoManager.gizmos.scaleGizmo;
                                 }
+                                
+                                // 方式2: 直接属性访问 (中版本)
+                                if (!positionGizmo && this.gizmoManager.positionGizmo) {
+                                    console.log('✅ 找到直接属性访问方式');
+                                    positionGizmo = this.gizmoManager.positionGizmo;
+                                    rotationGizmo = this.gizmoManager.rotationGizmo;
+                                    scaleGizmo = this.gizmoManager.scaleGizmo;
+                                }
+                                
+                                // 方式3: 通过_gizmos私有属性访问 (旧版本)
+                                if (!positionGizmo && this.gizmoManager._gizmos) {
+                                    console.log('✅ 找到_gizmos私有属性');
+                                    positionGizmo = this.gizmoManager._gizmos.positionGizmo;
+                                    rotationGizmo = this.gizmoManager._gizmos.rotationGizmo;
+                                    scaleGizmo = this.gizmoManager._gizmos.scaleGizmo;
+                                }
+                                
+                                // 方式4: 手动创建Gizmo (备用方案)
+                                if (!positionGizmo && BABYLON.PositionGizmo) {
+                                    console.log('🔧 手动创建Gizmo对象');
+                                    try {
+                                        positionGizmo = new BABYLON.PositionGizmo();
+                                        rotationGizmo = new BABYLON.RotationGizmo();
+                                        scaleGizmo = new BABYLON.ScaleGizmo();
+                                        
+                                        // 手动关联到GizmoManager
+                                        this.gizmoManager._positionGizmo = positionGizmo;
+                                        this.gizmoManager._rotationGizmo = rotationGizmo;
+                                        this.gizmoManager._scaleGizmo = scaleGizmo;
+                                    } catch (createError) {
+                                        console.warn('手动创建Gizmo失败:', createError);
+                                    }
+                                }
+                                
+                                console.log('🎯 Gizmo检查结果:');
+                                console.log('  位置Gizmo:', positionGizmo);
+                                console.log('  旋转Gizmo:', rotationGizmo);
+                                console.log('  缩放Gizmo:', scaleGizmo);
+                                
+                                // 设置Gizmo事件监听器
+                                if (positionGizmo && rotationGizmo) {
+                                    this.setupGizmoEventListeners(positionGizmo, rotationGizmo, scaleGizmo);
+                                    console.log('✅ Gizmo事件监听器设置成功');
+                                } else {
+                                    console.warn('⚠️ Gizmo对象未正确初始化，可能是Babylon.js版本兼容性问题');
+                                    console.log('将使用简化的Gizmo模式');
+                                    // Gizmo基本功能仍然可用，只是事件监听可能不工作
+                                    this.setupFallbackGizmoMode();
+                                }
+                                
+                                // 修复旋转Gizmo与非均匀缩放的兼容性问题
+                                if (rotationGizmo && typeof rotationGizmo.updateGizmoRotationToMatchAttachedMesh !== 'undefined') {
+                                    rotationGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+                                    console.log('✅ 旋转Gizmo兼容性修复：禁用自动旋转匹配');
+                                }
+                                
                             } catch (delayedError) {
                                 console.error('延迟Gizmo设置失败:', delayedError);
+                                console.log('Gizmo基本功能仍然可用');
+                                this.setupFallbackGizmoMode();
                             }
-                        }, 100); // 延迟100ms等待Gizmo初始化
+                        }, 500); // 增加延迟时间到500ms
                         
                         console.log('Gizmo管理器创建成功');
                     } else {
@@ -819,6 +853,112 @@
                 } catch (error) {
                     console.error('Gizmo管理器设置失败:', error);
                     this.gizmoManager = null;
+                }
+            }
+            
+            // 设置Gizmo事件监听器
+            setupGizmoEventListeners(positionGizmo, rotationGizmo, scaleGizmo) {
+                try {
+                    // 位置Gizmo事件
+                    if (positionGizmo) {
+                        positionGizmo.onDragStartObservable.add(() => {
+                            this.camera.detachControl();
+                            console.log('开始拖拽位置Gizmo');
+                        });
+
+                        positionGizmo.onDragEndObservable.add(() => {
+                            this.camera.attachControl(this.canvas, true);
+                            this.needsRayUpdate = true;
+                            this.updatePropertiesPanel();
+                            console.log('结束拖拽位置Gizmo');
+                        });
+
+                        positionGizmo.onDragObservable.add(() => {
+                            this.needsRayUpdate = true;
+                        });
+                    }
+                    
+                    // 旋转Gizmo事件
+                    if (rotationGizmo) {
+                        rotationGizmo.onDragStartObservable.add(() => {
+                            this.camera.detachControl();
+                            console.log('开始拖拽旋转Gizmo');
+                        });
+
+                        rotationGizmo.onDragEndObservable.add(() => {
+                            this.camera.attachControl(this.canvas, true);
+                            this.needsRayUpdate = true;
+                            this.updatePropertiesPanel();
+                            console.log('结束拖拽旋转Gizmo');
+                        });
+
+                        rotationGizmo.onDragObservable.add(() => {
+                            this.needsRayUpdate = true;
+                        });
+                    }
+                    
+                    // 缩放Gizmo事件（如果需要的话）
+                    if (scaleGizmo) {
+                        scaleGizmo.onDragStartObservable.add(() => {
+                            this.camera.detachControl();
+                            console.log('开始拖拽缩放Gizmo');
+                        });
+
+                        scaleGizmo.onDragEndObservable.add(() => {
+                            this.camera.attachControl(this.canvas, true);
+                            this.needsRayUpdate = true;
+                            this.updatePropertiesPanel();
+                            console.log('结束拖拽缩放Gizmo');
+                        });
+
+                        scaleGizmo.onDragObservable.add(() => {
+                            this.needsRayUpdate = true;
+                        });
+                    }
+                    
+                    console.log('Gizmo事件监听器配置完成');
+                } catch (error) {
+                    console.error('Gizmo事件监听器设置错误:', error);
+                }
+            }
+            
+            // 备用Gizmo模式
+            setupFallbackGizmoMode() {
+                try {
+                    console.log('🔧 设置备用Gizmo模式...');
+                    
+                    // 使用通用的指针观察者来监听Gizmo拖拽
+                    this.scene.onPointerObservable.add((pointerInfo) => {
+                        if (this.selectedComponent && this.gizmoManager && this.gizmoManager.attachedMesh === this.selectedComponent.mesh) {
+                            switch (pointerInfo.type) {
+                                case BABYLON.PointerEventTypes.POINTERDOWN:
+                                    // 检查是否点击在Gizmo上
+                                    if (pointerInfo.pickInfo && pointerInfo.pickInfo.pickedMesh) {
+                                        const pickedMesh = pointerInfo.pickInfo.pickedMesh;
+                                        // 如果点击的是Gizmo相关的网格（通常名称包含"gizmo"）
+                                        if (pickedMesh.name && pickedMesh.name.toLowerCase().includes('gizmo')) {
+                                            this.camera.detachControl();
+                                            console.log('开始拖拽Gizmo (备用方式)');
+                                        }
+                                    }
+                                    break;
+                                case BABYLON.PointerEventTypes.POINTERUP:
+                                    this.camera.attachControl(this.canvas, true);
+                                    this.needsRayUpdate = true;
+                                    this.updatePropertiesPanel();
+                                    break;
+                                case BABYLON.PointerEventTypes.POINTERMOVE:
+                                    if (this.gizmoManager && this.gizmoManager.attachedMesh) {
+                                        this.needsRayUpdate = true;
+                                    }
+                                    break;
+                            }
+                        }
+                    });
+                    
+                    console.log('✅ 备用Gizmo模式设置完成');
+                } catch (error) {
+                    console.error('备用Gizmo模式设置失败:', error);
                 }
             }
 
@@ -832,15 +972,22 @@
                 this.transformMode = mode;
                 
                 try {
+                    console.log(`🔄 切换变换模式到: ${mode}`);
+                    
                     if (mode === 'translate') {
                         this.gizmoManager.positionGizmoEnabled = true;
                         this.gizmoManager.rotationGizmoEnabled = false;
-                        console.log('切换到移动模式');
+                        console.log('✅ 切换到移动模式');
                     } else if (mode === 'rotate') {
                         this.gizmoManager.positionGizmoEnabled = false;
                         this.gizmoManager.rotationGizmoEnabled = true;
-                        console.log('切换到旋转模式');
+                        console.log('✅ 切换到旋转模式');
                     }
+                    
+                    // 验证设置是否生效
+                    console.log('当前Gizmo状态:');
+                    console.log('  位置Gizmo启用:', this.gizmoManager.positionGizmoEnabled);
+                    console.log('  旋转Gizmo启用:', this.gizmoManager.rotationGizmoEnabled);
                     
                     // 如果有选中的组件，重新附加Gizmo以应用新模式
                     if (this.selectedComponent) {
@@ -850,11 +997,46 @@
                         setTimeout(() => {
                             if (this.selectedComponent) {
                                 this.gizmoManager.attachToMesh(this.selectedComponent.mesh);
+                                console.log('Gizmo重新附加完成');
+                                
+                                // 应用旋转Gizmo兼容性修复
+                                if (mode === 'rotate') {
+                                    setTimeout(() => {
+                                        this.applyGizmoCompatibilityFix();
+                                    }, 50);
+                                }
                             }
                         }, 50);
                     }
                 } catch (error) {
                     console.error('设置变换模式失败:', error);
+                }
+            }
+            
+            // 应用Gizmo兼容性修复
+            applyGizmoCompatibilityFix() {
+                try {
+                    let rotationGizmo = null;
+                    
+                    // 多种方式获取旋转Gizmo
+                    if (this.gizmoManager.gizmos && this.gizmoManager.gizmos.rotationGizmo) {
+                        rotationGizmo = this.gizmoManager.gizmos.rotationGizmo;
+                    } else if (this.gizmoManager.rotationGizmo) {
+                        rotationGizmo = this.gizmoManager.rotationGizmo;
+                    } else if (this.gizmoManager._gizmos && this.gizmoManager._gizmos.rotationGizmo) {
+                        rotationGizmo = this.gizmoManager._gizmos.rotationGizmo;
+                    } else if (this.gizmoManager._rotationGizmo) {
+                        rotationGizmo = this.gizmoManager._rotationGizmo;
+                    }
+                    
+                    if (rotationGizmo && typeof rotationGizmo.updateGizmoRotationToMatchAttachedMesh !== 'undefined') {
+                        rotationGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+                        console.log('✅ 旋转Gizmo兼容性修复已应用');
+                    } else {
+                        console.log('ℹ️ 旋转Gizmo不需要兼容性修复或属性不存在');
+                    }
+                } catch (fixError) {
+                    console.warn('旋转Gizmo兼容性修复失败:', fixError);
                 }
             }
 
@@ -913,15 +1095,9 @@
 
                 // 鼠标点击选择和拖拽
                 this.scene.onPointerDown = (evt, pickInfo) => {
-                    console.log('鼠标点击检测到，pickInfo:', pickInfo);
-                    
-                    if (pickInfo && pickInfo.hit) {
-                        console.log('点击到对象:', pickInfo.pickedMesh?.name);
+                    if (pickInfo.hit) {
                         const component = this.components.find(comp => comp.mesh === pickInfo.pickedMesh);
-                        console.log('找到的组件:', component?.type);
-                        
                         if (component) {
-                            console.log('选择组件:', component.type);
                             this.selectComponent(component);
                             
                             // 如果Gizmo不可用，启用简单拖拽
@@ -933,11 +1109,9 @@
                                 console.log('开始简单拖拽模式');
                             }
                         } else {
-                            console.log('未找到对应的组件，清除选择');
                             this.clearSelection();
                         }
                     } else {
-                        console.log('未点击到任何对象，清除选择');
                         this.clearSelection();
                     }
                 };
@@ -963,35 +1137,6 @@
                         console.log('结束简单拖拽模式');
                     }
                 };
-
-                // 额外的点击处理 - 备用方案
-                this.canvas.addEventListener('click', (event) => {
-                    console.log('Canvas点击事件触发');
-                    
-                    // 创建拾取射线
-                    const pickRay = this.scene.createPickingRay(
-                        this.scene.pointerX, 
-                        this.scene.pointerY, 
-                        BABYLON.Matrix.Identity(), 
-                        this.camera
-                    );
-                    
-                    // 手动执行拾取
-                    const pickInfo = this.scene.pickWithRay(pickRay, (mesh) => {
-                        // 只拾取组件网格
-                        return this.components.some(comp => comp.mesh === mesh);
-                    });
-                    
-                    console.log('手动拾取结果:', pickInfo);
-                    
-                    if (pickInfo && pickInfo.hit) {
-                        const component = this.components.find(comp => comp.mesh === pickInfo.pickedMesh);
-                        if (component) {
-                            console.log('手动拾取找到组件:', component.type);
-                            this.selectComponent(component);
-                        }
-                    }
-                });
 
                 // UI事件
                 this.setupUIEventListeners();
@@ -1357,13 +1502,10 @@
                         };
 
                         this.components.push(component);
-                        
-                        console.log(`组件创建成功: ${type}, 总数: ${this.components.length}`);
-                        console.log('新创建的网格:', mesh.name, '可拾取:', mesh.isPickable);
-                        console.log('组件列表:', this.components.map(c => `${c.type}(${c.mesh.name})`));
-                        
                         this.selectComponent(component);
                         this.needsRayUpdate = true;
+                        
+                        console.log(`组件创建成功: ${type}, 总数: ${this.components.length}`);
                     }
                 } catch (error) {
                     console.error('组件创建失败:', error);
@@ -1397,9 +1539,6 @@
                 mesh.position = position;
                 mesh.rotation.z = Math.PI / 2;
                 
-                // 确保mesh可以被拾取
-                mesh.isPickable = true;
-                
                 const material = new BABYLON.StandardMaterial("laserMat", this.scene);
                 material.diffuseColor = this.hexToColor3(properties.color || "#ff0000");
                 material.emissiveColor = material.diffuseColor.scale(0.3);
@@ -1408,43 +1547,29 @@
                 return mesh;
             }
 
-            // 创建透镜形状（根据透镜制造者公式和光学原理）
+            // 创建简化的透镜形状（不依赖CSG）
             createLens(subtype, position, properties) {
                 let mesh;
-                const focalLength = properties.focalLength || 50;
-                const diameter = properties.diameter || 25;
-                const ior = properties.ior || 1.5;
-                const userThickness = properties.thickness || null;
-                const isConvex = focalLength > 0;
                 
-                // 计算透镜参数
-                const R = 2 * Math.abs(focalLength) * (ior - 1);
-                const sagitta = Math.pow(diameter/2, 2) / (2 * R);
-                const minThickness = Math.max(0.5, diameter * 0.02);
-                const maxThickness = diameter * 0.6;
-                
-                let centerThickness;
-                if (userThickness !== null && userThickness > 0) {
-                    centerThickness = Math.max(minThickness, Math.min(maxThickness, userThickness));
+                if (subtype === 'convex') {
+                    // 使用扁平的球体模拟凸透镜
+                    mesh = BABYLON.MeshBuilder.CreateSphere("convexLens", {
+                        diameter: properties.diameter / 10,
+                        segments: 32
+                    }, this.scene);
+                    mesh.scaling = new BABYLON.Vector3(0.3, 1, 1);
                 } else {
-                    if (focalLength > 0) {
-                        centerThickness = Math.max(minThickness, Math.min(maxThickness, sagitta * 2 + minThickness));
-                    } else {
-                        centerThickness = Math.max(minThickness, maxThickness - sagitta * 1.5);
-                    }
-                }
-                
-                if (isConvex) {
-                    mesh = this.createConvexLens(diameter, centerThickness, R);
-                } else {
-                    mesh = this.createConcaveLens(diameter, centerThickness, R);
+                    // 使用圆柱体模拟凹透镜
+                    mesh = BABYLON.MeshBuilder.CreateCylinder("concaveLens", {
+                        diameter: properties.diameter / 10,
+                        height: 0.1,
+                        tessellation: 32
+                    }, this.scene);
+                    mesh.scaling = new BABYLON.Vector3(1, 0.5, 1);
                 }
                 
                 mesh.position = position;
                 mesh.rotation.z = Math.PI / 2;
-                
-                // 确保mesh可以被拾取
-                mesh.isPickable = true;
                 
                 const material = new BABYLON.StandardMaterial("lensMat", this.scene);
                 material.diffuseColor = this.hexToColor3(properties.color || "#80c0ff");
@@ -1454,64 +1579,6 @@
                 mesh.material = material;
                 
                 return mesh;
-            }
-            
-            // 创建凸透镜几何体
-            createConvexLens(diameter, centerThickness, radiusOfCurvature) {
-                // 使用球体创建凸透镜，然后扁平化
-                const lens = BABYLON.MeshBuilder.CreateSphere("convexLens", {
-                    diameter: diameter / 10,
-                    segments: 32
-                }, this.scene);
-                
-                // 计算厚度比例
-                const thicknessRatio = Math.max(0.1, Math.min(0.8, centerThickness / diameter));
-                
-                // 扁平化形成透镜形状
-                lens.scaling.x = thicknessRatio;
-                
-                // 确保mesh可以被拾取
-                lens.isPickable = true;
-                
-                return lens;
-            }
-            
-            // 创建凹透镜几何体
-            createConcaveLens(diameter, centerThickness, radiusOfCurvature) {
-                // 使用圆柱体创建凹透镜基础
-                const edgeThickness = Math.max(centerThickness * 1.5, diameter * 0.05);
-                const lens = BABYLON.MeshBuilder.CreateCylinder("concaveLens", {
-                    diameter: diameter / 10,
-                    height: edgeThickness / 10,
-                    tessellation: 32
-                }, this.scene);
-                
-                // 创建中心凹陷效果
-                const positions = lens.getVerticesData(BABYLON.VertexBuffer.PositionKind);
-                if (positions) {
-                    for (let i = 0; i < positions.length; i += 3) {
-                        const x = positions[i];
-                        const y = positions[i + 1];
-                        const z = positions[i + 2];
-                        
-                        // 计算距离中心的径向距离
-                        const radialDistance = Math.sqrt(y * y + z * z);
-                        const maxRadius = diameter / 20;
-                        
-                        if (radialDistance < maxRadius) {
-                            // 在中心区域创建凹陷
-                            const normalizedRadius = radialDistance / maxRadius;
-                            const depression = (1 - normalizedRadius * normalizedRadius) * 0.5;
-                            positions[i] = x * (1 - depression);
-                        }
-                    }
-                    lens.setVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
-                }
-                
-                // 确保mesh可以被拾取
-                lens.isPickable = true;
-                
-                return lens;
             }
 
             createMirror(subtype, position, properties) {
@@ -1538,9 +1605,6 @@
                     mesh.rotation.y = -Math.PI / 4;
                 }
                 
-                // 确保mesh可以被拾取
-                mesh.isPickable = true;
-                
                 const material = new BABYLON.StandardMaterial("mirrorMat", this.scene);
                 material.diffuseColor = this.hexToColor3(properties.color || "#c0c0c0");
                 material.specularColor = new BABYLON.Color3(0.9, 0.9, 0.9);
@@ -1563,9 +1627,6 @@
                 mesh.rotation.x = Math.PI / 2;
                 mesh.rotation.y = (properties.rotation || 0) * Math.PI / 180;
                 
-                // 确保mesh可以被拾取
-                mesh.isPickable = true;
-                
                 const material = new BABYLON.StandardMaterial("prismMat", this.scene);
                 material.diffuseColor = this.hexToColor3(properties.color || "#f0f0f5");
                 material.alpha = properties.transparency || 0.7;
@@ -1582,9 +1643,6 @@
                 }, this.scene);
                 
                 mesh.position = position;
-                
-                // 确保mesh可以被拾取
-                mesh.isPickable = true;
                 
                 const material = new BABYLON.StandardMaterial("gratingMat", this.scene);
                 material.diffuseColor = this.hexToColor3(properties.color || "#808080");
@@ -1621,9 +1679,6 @@
                 
                 mesh.position = position;
                 
-                // 确保mesh可以被拾取
-                mesh.isPickable = true;
-                
                 const material = new BABYLON.StandardMaterial("screenMat", this.scene);
                 material.diffuseColor = this.hexToColor3(properties.color || "#ffffff");
                 material.emissiveColor = new BABYLON.Color3(0.1, 0.1, 0.1);
@@ -1642,8 +1697,8 @@
                         divergence: 0.1
                     },
                     lens: {
-                        ior: 1.5,
-                        focalLength: 50,
+                        ior: subtype === 'convex' ? 1.5 : 1.5,
+                        focalLength: subtype === 'convex' ? 50 : -50,
                         diameter: 25,
                         thickness: 5,
                         color: "#80c0ff",
@@ -1699,7 +1754,7 @@
             }
 
             selectComponent(component) {
-                console.log('开始选择组件:', component.type);
+                console.log('🎯 开始选择组件:', component.type);
                 this.clearSelection();
                 
                 this.selectedComponent = component;
@@ -1711,20 +1766,25 @@
                         // 根据当前变换模式设置Gizmo
                         this.setTransformMode(this.transformMode);
                         
-                        console.log('附加Gizmo到组件');
+                        console.log('📎 附加Gizmo到组件');
                         this.gizmoManager.attachToMesh(component.mesh);
+                        
+                        // 应用兼容性修复 - 延迟执行确保Gizmo完全附加
+                        setTimeout(() => {
+                            this.applyGizmoCompatibilityFix();
+                        }, 100);
                         
                         // 验证Gizmo是否正确附加
                         if (this.gizmoManager.attachedMesh === component.mesh) {
-                            console.log('Gizmo成功附加到组件');
+                            console.log('✅ Gizmo成功附加到组件');
                         } else {
-                            console.warn('Gizmo附加可能失败');
+                            console.warn('⚠️ Gizmo附加可能失败');
                         }
                     } catch (error) {
-                        console.error('Gizmo操作失败:', error);
+                        console.error('❌ Gizmo操作失败:', error);
                     }
                 } else {
-                    console.warn('GizmoManager 不可用');
+                    console.warn('⚠️ GizmoManager 不可用');
                 }
                 
                 this.updatePropertiesPanel();
@@ -1776,17 +1836,7 @@
                 const rot = mesh.rotation;
                 
                 let html = `<div style="margin-bottom: 10px;"><strong>ID:</strong> ${component.id}</div>`;
-                
-                // 特殊处理透镜类型显示
-                let typeDisplay = component.type;
-                if (component.type === 'lens') {
-                    const focalLength = component.properties.focalLength || 50;
-                    typeDisplay = focalLength > 0 ? '凸透镜' : '凹透镜';
-                } else if (component.subtype) {
-                    typeDisplay += ' - ' + component.subtype;
-                }
-                
-                html += `<div style="margin-bottom: 10px;"><strong>类型:</strong> ${typeDisplay}</div>`;
+                html += `<div style="margin-bottom: 10px;"><strong>类型:</strong> ${component.type}${component.subtype ? ' - ' + component.subtype : ''}</div>`;
                 html += `<div style="margin-bottom: 15px; padding: 8px; background: rgba(0, 150, 255, 0.2); border-radius: 4px; border: 1px solid #0099ff;">
                     <strong>变换模式:</strong> ${this.transformMode === 'translate' ? '移动 (按T键)' : '旋转 (按R键)'}
                 </div>`;
@@ -1861,22 +1911,14 @@
                         html += this.createSlider("折射率", props.ior, 1.0, 2.5, 0.01, (val) => {
                             props.ior = val;
                             component.mesh.metadata.ior = val;
-                            this.updateLensShape(component);
                             this.needsRayUpdate = true;
                         });
                         html += this.createSlider("焦距 (mm)", props.focalLength, -200, 200, 1, (val) => {
                             props.focalLength = val;
-                            this.updateLensShape(component);
-                            this.needsRayUpdate = true;
                         });
                         html += this.createSlider("直径 (mm)", props.diameter, 10, 50, 1, (val) => {
                             props.diameter = val;
-                            this.updateLensShape(component);
-                            this.needsRayUpdate = true;
-                        });
-                        html += this.createSlider("中心厚度 (mm)", props.thickness, 0.5, 15, 0.1, (val) => {
-                            props.thickness = val;
-                            this.updateLensShape(component);
+                            this.updateLensSize(component, val);
                             this.needsRayUpdate = true;
                         });
                         html += this.createSlider("透明度", props.transparency, 0.1, 1.0, 0.05, (val) => {
@@ -1889,16 +1931,6 @@
                             props.color = val;
                             this.updateMeshColor(component.mesh, val);
                         });
-                        
-                        // 显示计算出的透镜参数
-                        const R = 2 * Math.abs(props.focalLength) * (props.ior - 1);
-                        const sagitta = Math.pow(props.diameter/2, 2) / (2 * R);
-                        html += `<div style="margin-top: 10px; padding: 5px; background: rgba(0, 100, 200, 0.2); border-radius: 3px; font-size: 11px;">
-                            <strong>计算参数:</strong><br>
-                            曲率半径: ${R.toFixed(1)} mm<br>
-                            矢高: ${sagitta.toFixed(2)} mm<br>
-                            透镜类型: ${props.focalLength > 0 ? '凸透镜' : '凹透镜'}
-                        </div>`;
                         break;
                         
                     case 'mirror':
@@ -2102,79 +2134,9 @@
             }
 
             updateLensSize(component, diameter) {
-                // 直径改变时重新创建透镜以保持正确的比例
-                this.updateLensShape(component);
-            }
-            
-            updateLensShape(component) {
-                const focalLength = component.properties.focalLength || 50;
-                const diameter = component.properties.diameter || 25;
-                const ior = component.properties.ior || 1.5;
-                const userThickness = component.properties.thickness || null;
-                
-                // 保存当前状态
-                const oldPosition = component.mesh.position.clone();
-                const oldRotation = component.mesh.rotation.clone();
-                const oldMaterial = component.mesh.material;
-                
-                // 删除旧网格
-                component.mesh.dispose();
-                
-                // 计算透镜参数（优先使用用户设置的厚度）
-                const isConvex = focalLength > 0;
-                const R = 2 * Math.abs(focalLength) * (ior - 1);
-                const sagitta = Math.pow(diameter/2, 2) / (2 * R);
-                const minThickness = Math.max(0.5, diameter * 0.02);
-                const maxThickness = diameter * 0.6;
-                
-                let centerThickness;
-                if (userThickness !== null && userThickness > 0) {
-                    centerThickness = Math.max(minThickness, Math.min(maxThickness, userThickness));
-                } else {
-                    if (focalLength > 0) {
-                        centerThickness = Math.max(minThickness, Math.min(maxThickness, sagitta * 2 + minThickness));
-                    } else {
-                        centerThickness = Math.max(minThickness, maxThickness - sagitta * 1.5);
-                    }
-                }
-                
-                // 创建新的透镜网格
-                let newMesh;
-                if (isConvex) {
-                    newMesh = this.createConvexLens(diameter, centerThickness, R);
-                } else {
-                    newMesh = this.createConcaveLens(diameter, centerThickness, R);
-                }
-                
-                // 恢复状态
-                newMesh.position = oldPosition;
-                newMesh.rotation = oldRotation;
-                newMesh.material = oldMaterial;
-                
-                // 确保新mesh可以被拾取
-                newMesh.isPickable = true;
-                
-                // 更新组件引用
-                component.mesh = newMesh;
-                
-                // 更新metadata
-                component.mesh.metadata = {
-                    type: 'refractive',
-                    ior: ior,
-                    component: component
-                };
-                
-                // 如果当前组件被选中，需要重新选择以更新Gizmo
-                if (this.selectedComponent === component) {
-                    // 临时清除选择
-                    this.selectedComponent = null;
-                    // 重新选择以更新Gizmo附着
-                    setTimeout(() => {
-                        this.selectComponent(component);
-                    }, 50);
-                }
-                
-                console.log(`透镜形状已更新: 焦距=${focalLength}mm, 直径=${diameter}mm, 厚度=${centerThickness.toFixed(1)}mm, 类型=${isConvex ? '凸透镜' : '凹透镜'}`);
+                const scale = diameter / 25; // 基准直径
+                component.mesh.scaling.y = scale;
+                component.mesh.scaling.z = scale;
             }
 
             updateMirrorSize(component, width, height) {
@@ -2502,10 +2464,6 @@
 
             // 🔥 极限性能优化设置
             setupExtremePerformanceMode() {
-                // 临时禁用极限性能模式来测试鼠标拾取
-                console.log('⚠️ 极限性能模式已临时禁用以确保鼠标拾取功能正常');
-                return;
-                
                 if (!this.enableHighPerformanceMode) return;
                 
                 console.log('🔥 配置极限性能模式...');
@@ -2753,15 +2711,45 @@
             initializeGame();
         }
 
-        // 防止页面刷新丢失
+        // 防止页面刷新丢失 - 优化的清理处理
         window.addEventListener('beforeunload', (event) => {
-            if (opticalSystemGame && opticalSystemGame.components && opticalSystemGame.components.length > 0) {
-                event.preventDefault();
-                event.returnValue = '您确定要离开吗？未保存的设计将丢失。';
+            // 清理游戏实例
+            if (opticalSystemGame) {
+                // 判断是否有未保存的工作
+                if (opticalSystemGame.components && opticalSystemGame.components.length > 0) {
+                    event.preventDefault();
+                    event.returnValue = '您确定要离开吗？未保存的设计将丢失。';
+                }
+                
+                // 异步清理资源，避免阻塞页面卸载
+                setTimeout(() => {
+                    if (opticalSystemGame && typeof opticalSystemGame.destroy === 'function') {
+                        opticalSystemGame.destroy();
+                    }
+                }, 0);
+            }
+        });
+        
+        // 页面可见性变化处理 - 优化性能
+        document.addEventListener('visibilitychange', () => {
+            if (opticalSystemGame && opticalSystemGame.engine) {
+                if (document.hidden) {
+                    // 页面隐藏时暂停渲染
+                    console.log('页面隐藏，暂停渲染以节省资源');
+                    opticalSystemGame.engine.stopRenderLoop();
+                } else {
+                    // 页面显示时恢复渲染
+                    console.log('页面显示，恢复渲染');
+                    opticalSystemGame.engine.runRenderLoop(() => {
+                        if (opticalSystemGame.scene) {
+                            opticalSystemGame.scene.render();
+                        }
+                    });
+                }
             }
         });
 
-        // 全局错误处理
+        // 全局错误处理 - 增强的错误恢复
         window.addEventListener('error', (event) => {
             console.error('JavaScript错误:', event.error);
             
@@ -2774,10 +2762,218 @@
                             <h3>❌ 发生错误</h3>
                             <p style="margin: 20px 0;">程序初始化失败，请刷新页面重试。</p>
                             <p style="font-size: 12px; color: #ccc;">详细错误信息请查看浏览器控制台</p>
+                            <button onclick="location.reload()" style="padding: 10px 20px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">
+                                立即刷新
+                            </button>
                         </div>
                     `;
                 }
+            } else {
+                // 运行时错误的处理
+                console.warn('尝试恢复运行时错误...');
+                
+                // 尝试清理可能损坏的状态
+                if (opticalSystemGame) {
+                    try {
+                        if (opticalSystemGame.eventManager) {
+                            opticalSystemGame.eventManager.isProcessing = false;
+                        }
+                        
+                        // 清理可能损坏的监听器
+                        if (opticalSystemGame.cleanupSliderEvents) {
+                            opticalSystemGame.cleanupSliderEvents();
+                        }
+                        if (opticalSystemGame.cleanupColorEvents) {
+                            opticalSystemGame.cleanupColorEvents();
+                        }
+                        
+                        console.log('✅ 运行时错误恢复尝试完成');
+                    } catch (recoveryError) {
+                        console.error('错误恢复失败:', recoveryError);
+                    }
+                }
             }
+        });
+        
+        // 内存压力处理
+        if ('memory' in performance) {
+            setInterval(() => {
+                if (opticalSystemGame && performance.memory) {
+                    const memoryInfo = performance.memory;
+                    const usedMB = memoryInfo.usedJSHeapSize / 1024 / 1024;
+                    const limitMB = memoryInfo.jsHeapSizeLimit / 1024 / 1024;
+                    
+                    // 如果内存使用超过80%，执行清理
+                    if (usedMB / limitMB > 0.8) {
+                        console.warn(`内存使用率过高: ${Math.round((usedMB / limitMB) * 100)}%, 执行清理...`);
+                        
+                        if (opticalSystemGame.cleanupSliderEvents) {
+                            opticalSystemGame.cleanupSliderEvents();
+                        }
+                        if (opticalSystemGame.cleanupColorEvents) {
+                            opticalSystemGame.cleanupColorEvents();
+                        }
+                        
+                        // 清理回调函数缓存
+                        if (window.sliderCallbacks) {
+                            window.sliderCallbacks = {};
+                        }
+                        if (window.colorCallbacks) {
+                            window.colorCallbacks = {};
+                        }
+                        
+                        // 强制垃圾回收（如果可能）
+                        if (window.gc) {
+                            window.gc();
+                        }
+                    }
+                }
+            }, 30000); // 每30秒检查一次
+        }
+        
+        // 自动保存功能
+        function setupAutoSave() {
+            setInterval(() => {
+                if (opticalSystemGame && opticalSystemGame.components && opticalSystemGame.components.length > 0) {
+                    try {
+                        const saveData = {
+                            timestamp: Date.now(),
+                            components: opticalSystemGame.components.map(comp => ({
+                                type: comp.type,
+                                subtype: comp.subtype,
+                                position: {
+                                    x: comp.mesh.position.x,
+                                    y: comp.mesh.position.y,
+                                    z: comp.mesh.position.z
+                                },
+                                rotation: {
+                                    x: comp.mesh.rotation.x,
+                                    y: comp.mesh.rotation.y,
+                                    z: comp.mesh.rotation.z
+                                },
+                                properties: comp.properties
+                            }))
+                        };
+                        
+                        localStorage.setItem('optical_system_autosave', JSON.stringify(saveData));
+                        console.log('💾 自动保存完成');
+                    } catch (error) {
+                        console.warn('自动保存失败:', error);
+                    }
+                }
+            }, 60000); // 每分钟自动保存
+        }
+        
+        // 加载自动保存的数据
+        function loadAutoSave() {
+            try {
+                const savedData = localStorage.getItem('optical_system_autosave');
+                if (savedData && opticalSystemGame) {
+                    const data = JSON.parse(savedData);
+                    const saveTime = new Date(data.timestamp).toLocaleString();
+                    
+                    if (confirm(`发现自动保存的数据 (${saveTime})，是否要恢复？`)) {
+                        // 清除当前场景
+                        opticalSystemGame.components.forEach(comp => {
+                            if (comp.mesh) comp.mesh.dispose();
+                        });
+                        opticalSystemGame.components = [];
+                        
+                        // 恢复组件
+                        data.components.forEach(compData => {
+                            opticalSystemGame.addComponent(compData.type, compData.subtype);
+                            const component = opticalSystemGame.components[opticalSystemGame.components.length - 1];
+                            
+                            if (component) {
+                                component.mesh.position.set(
+                                    compData.position.x,
+                                    compData.position.y,
+                                    compData.position.z
+                                );
+                                component.mesh.rotation.set(
+                                    compData.rotation.x,
+                                    compData.rotation.y,
+                                    compData.rotation.z
+                                );
+                                component.properties = { ...component.properties, ...compData.properties };
+                            }
+                        });
+                        
+                        opticalSystemGame.needsRayUpdate = true;
+                        console.log('✅ 自动保存数据已恢复');
+                    }
+                }
+            } catch (error) {
+                console.warn('加载自动保存失败:', error);
+            }
+        }
+        
+        // 性能监控和调试工具
+        function setupPerformanceMonitoring() {
+            // 添加调试工具面板
+            const debugPanel = document.createElement('div');
+            debugPanel.id = 'debugPanel';
+            debugPanel.style.cssText = `
+                position: fixed;
+                bottom: 10px;
+                left: 10px;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 10px;
+                border-radius: 5px;
+                font-family: monospace;
+                font-size: 12px;
+                z-index: 1000;
+                max-width: 300px;
+                display: none;
+            `;
+            document.body.appendChild(debugPanel);
+            
+            // 切换调试面板的快捷键
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                    e.preventDefault();
+                    debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+                }
+            });
+            
+            // 更新调试信息
+            setInterval(() => {
+                if (debugPanel.style.display !== 'none' && opticalSystemGame) {
+                    const engine = opticalSystemGame.engine;
+                    const scene = opticalSystemGame.scene;
+                    
+                    let debugInfo = `
+                        FPS: ${engine.getFps().toFixed(1)}<br>
+                        渲染时间: ${engine.getDeltaTime().toFixed(2)}ms<br>
+                        活动网格: ${scene ? scene.getActiveMeshes().length : 0}<br>
+                        总网格: ${scene ? scene.meshes.length : 0}<br>
+                        材质数: ${scene ? scene.materials.length : 0}<br>
+                        纹理数: ${scene ? scene.textures.length : 0}<br>
+                        组件数: ${opticalSystemGame.components ? opticalSystemGame.components.length : 0}<br>
+                        光线段数: ${opticalSystemGame.rayLines ? opticalSystemGame.rayLines.length : 0}<br>
+                    `;
+                    
+                    if (performance.memory) {
+                        const memory = performance.memory;
+                        debugInfo += `内存: ${(memory.usedJSHeapSize / 1024 / 1024).toFixed(1)}MB<br>`;
+                    }
+                    
+                    debugPanel.innerHTML = `
+                        <strong>调试信息 (Ctrl+Shift+D 切换)</strong><br>
+                        ${debugInfo}
+                    `;
+                }
+            }, 1000);
+        }
+        
+        // 初始化所有增强功能
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                setupAutoSave();
+                setupPerformanceMonitoring();
+                loadAutoSave();
+            }, 2000);
         });
 
         </script>
